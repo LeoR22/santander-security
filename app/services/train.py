@@ -1,62 +1,97 @@
 # app/services/train.py
-import pandas as pd, numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from xgboost import XGBClassifier
+import argparse
 import joblib
-from app.config import PROC_DIR, MODELS_DIR
+import pandas as pd
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import classification_report, roc_auc_score, precision_recall_curve, auc
 
-def fit():
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+from app.config import MODELS_DIR, PROC_DIR
+
+def train_model():
+    # Cargar features y filtrar solo Santander
     df = pd.read_parquet(PROC_DIR / "features.parquet")
+    df = df[df["departamento"] == "SANTANDER"].copy()
 
-    # Aggregate to municipio-mes
-    agg = df.groupby(["departamento","municipio","anio","mes"], as_index=False).agg({
-        "tasa_delitos_muni_mes":"mean","tasa_delitos_dep_mes":"mean","acumulado_90d":"mean",
-        "has_edad":"mean","has_genero":"mean","has_armas":"mean"
-    })
-    # Merge target
-    target = df.groupby(["municipio","anio","mes"], as_index=False)["riesgo_alto"].max()
-    data = agg.merge(target, on=["municipio","anio","mes"], how="left")
+    # Definir variables y target (sin municipio)
+    features = [
+        "departamento", "anio", "mes",
+        "tasa_delitos_muni_mes_lag", "tasa_delitos_dep_mes_lag", "acumulado_90d"
+    ]
+    target = "riesgo_alto"
 
-    X = data[["departamento","municipio","anio","mes","tasa_delitos_muni_mes","tasa_delitos_dep_mes","acumulado_90d"]]
-    y = data["riesgo_alto"].fillna(0).astype(int)
+    # Split temporal: entrenar con todos los años menos el último y validar en el último
+    ultimo_anio = int(df["anio"].max())
+    train_df = df[df["anio"] < ultimo_anio]
+    test_df  = df[df["anio"] == ultimo_anio]
 
-    cat_cols = ["departamento","municipio"]
-    num_cols = ["anio","mes","tasa_delitos_muni_mes","tasa_delitos_dep_mes","acumulado_90d"]
+    X_train = train_df[features]
+    y_train = train_df[target]
+    X_test  = test_df[features]
+    y_test  = test_df[target]
 
-    pre = ColumnTransformer([
-        ("onehot", OneHotEncoder(handle_unknown="ignore"), cat_cols),
-        ("pass", "passthrough", num_cols)
-    ])
+    # ⚠️ Ajuste automático si solo hay una clase en train
+    if y_train.nunique() < 2:
+        print("⚠️ Solo una clase en train, ajustando split...")
+        ultimo_mes = int(df["mes"].max())
+        train_df = df[(df["anio"] < ultimo_anio) | ((df["anio"] == ultimo_anio) & (df["mes"] < ultimo_mes))]
+        test_df  = df[(df["anio"] == ultimo_anio) & (df["mes"] == ultimo_mes)]
+        X_train = train_df[features]
+        y_train = train_df[target]
+        X_test  = test_df[features]
+        y_test  = test_df[target]
 
-    clf = XGBClassifier(
-        n_estimators=300, max_depth=6, learning_rate=0.08, subsample=0.8, colsample_bytree=0.8,
-        reg_lambda=1.0, random_state=42, n_jobs=4
+    # Preprocesamiento de columnas
+    cat_cols = ["departamento"]
+    num_cols = ["anio", "mes", "tasa_delitos_muni_mes_lag", "tasa_delitos_dep_mes_lag", "acumulado_90d"]
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols),
+            ("num", Pipeline([
+                ("imputer", SimpleImputer(strategy="constant", fill_value=0)),
+                ("scaler", StandardScaler())
+            ]), num_cols),
+        ]
     )
 
-    model = Pipeline([("pre", pre), ("clf", clf)])
+    # Clasificador
+    clf = GradientBoostingClassifier(random_state=42)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+    # Pipeline completo
+    model = Pipeline(steps=[
+        ("pre", preprocessor),
+        ("clf", clf)
+    ])
+
+    # Entrenar
     model.fit(X_train, y_train)
+
+    # Evaluación (validación temporal)
     y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)[:,1]
+    print("📊 Reporte de clasificación (validación temporal):")
+    print(classification_report(y_test, y_pred))
 
-    metrics = {
-        "auc": float(roc_auc_score(y_test, y_prob)),
-        "f1": float(f1_score(y_test, y_pred)),
-        "precision": float(precision_score(y_test, y_pred)),
-        "recall": float(recall_score(y_test, y_pred)),
-        "n_train": int(len(X_train)),
-        "n_test": int(len(X_test))
-    }
+    # Métricas adicionales
+    if hasattr(model, "predict_proba"):
+        y_proba = model.predict_proba(X_test)[:, 1]
+        roc = roc_auc_score(y_test, y_proba)
+        precision, recall, _ = precision_recall_curve(y_test, y_proba)
+        pr = auc(recall, precision)
+        print(f"ROC-AUC: {roc:.3f}")
+        print(f"PR-AUC: {pr:.3f}")
 
+    # Guardar modelo
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, MODELS_DIR / "risk_model.pkl")
-    pd.Series(metrics).to_json(MODELS_DIR / "metrics.json")
-    print("Saved model and metrics:", metrics)
+    print(f"✅ Modelo guardado en {MODELS_DIR / 'risk_model.pkl'}")
 
 if __name__ == "__main__":
-    fit()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train", action="store_true")
+    args = parser.parse_args()
+    if args.train:
+        train_model()
