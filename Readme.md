@@ -37,7 +37,7 @@ santander-security/
 │ ├─ bootstrap.sh # ETL + features + entrenamiento 
 │ ├─ run_train.sh # Entrenamiento manual 
 │ ├─ seed_demo.sh # Datos de prueba
-├─ frontend/ # Aplicación Angular (mapa, filtros, chatbot) 
+├─ frontend/ # Aplicación React (mapa, filtros, chatbot) 
 ├─ dockerfile # Imagen backend 
 ├─ docker-compose.yml # Backend + Frontend 
 ├─ requirements.txt # Dependencias Python 
@@ -82,15 +82,42 @@ Se derivaron más de **25 variables** adicionales para análisis predictivo, cob
 | `/analytics/risk/predict` | Predicción de riesgo por municipio |
 | `/analytics/metrics` | Métricas del modelo (AUC, F1, etc.) |
 | `/chatbot/ask` | Preguntas ciudadanas con respuesta explicada |
+|`/chatbot/quick/{tipo}` |Respuestas rápidas (estadisticas, prediccion, situacion) |
 | `/reports/submit` | Reportes ciudadanos en tiempo real (opcional) |
 
 ## 🧪 Métricas del modelo
 
-- AUC: 0.87
-- F1: 0.76
-- Precisión: 0.79
-- Cobertura de edad: 92%
-- Cobertura de género: 95%
+- Precisión clase 0: 0.98
+- Recall clase 0: 1.00
+- F1-score clase 0: 0.99
+- Precisión clase 1: 1.00
+- Recall clase 1: 0.99
+- F1-score clase 1: 0.99
+- Accuracy global: 0.99
+- ROC-AUC: 1.000
+- PR-AUC: 1.000
+- 📌 El modelo se guarda automáticamente en:
+```
+app/data/models/risk_model.pkl
+```
+## ⚙️ Modelo, algoritmos y frameworks utilizados
+Modelo principal: GradientBoostingClassifier (Scikit-learn)
+- *Algoritmos:*
+    - Gradient Boosting para clasificación binaria de riesgo
+    - Validación temporal y externa con métricas ROC-AUC y PR-AUC
+    - Feature engineering con más de 25 variables derivadas (temporales, demográficas, geoespaciales)
+
+## Eejecución del Modelo
+```
+python -m app.services.etl --fetch
+```
+*Este comando corre todo el pipeline:*
+
+- ETL → limpieza y normalización de datos
+- Features → generación de features.parquet
+- Train → entrenamiento del modelo y guardado en risk_model.pkl
+- Validate → validación temporal y externa con métricas
+
 
 ## 🗺️ Impacto
 
@@ -102,7 +129,10 @@ Se derivaron más de **25 variables** adicionales para análisis predictivo, cob
 ## 🧪 Cómo levantar todo
 ### 1. Clona el proyecto y entra al directorio
 ```
-git clone https://github.com/usuario/santander-security
+https://github.com/LeoR22/santander-security
+```
+Moverse directorio principal
+```
 cd santander-security
 ```
 ### 2. Ejecuta el bootstrap para preparar datos y modelo
