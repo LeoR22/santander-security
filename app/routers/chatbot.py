@@ -42,21 +42,75 @@ def _summary(municipio: Optional[str], delito: Optional[str]):
 
 @router.post("/ask", response_model=ChatResponse)
 def ask(req: ChatRequest):
-    total, hora, top_muni, reco = _summary(req.municipio, req.delito)
+    import unicodedata
 
+    # Función de normalización: minúsculas + quitar tildes
+    def normalize(text: str) -> str:
+        if not isinstance(text, str):
+            return ""
+        text = text.lower()
+        text = unicodedata.normalize("NFD", text)
+        return "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+
+    # Cargar datos
+    df = pd.read_parquet(PROC_DIR / "features.parquet")
+    df = df[df["departamento"] == "SANTANDER"].copy()
+
+    pregunta = normalize(req.pregunta)
+
+    # setectar entidades clave 
+    def detectar(lista, texto):
+        lista_norm = [normalize(item) for item in lista]
+        return next((lista[i] for i, item in enumerate(lista_norm) if item in texto), None)
+
+    municipio = detectar(df["municipio"].dropna().unique(), pregunta)
+    tipo_delito = detectar(df["tipo_delito"].dropna().unique(), pregunta)
+    grupo_etario = detectar(df["grupo_etario"].dropna().unique(), pregunta)
+    franja_hora = detectar(df["franja_hora"].dropna().unique(), pregunta)
+    genero = detectar(df["genero"].dropna().unique(), pregunta)
+
+    # Aplicar filtros dinámicos 
+    df_filtrado = df.copy()
+    if municipio:
+        df_filtrado = df_filtrado[df_filtrado["municipio"] == municipio]
+    if tipo_delito:
+        df_filtrado = df_filtrado[df_filtrado["tipo_delito"] == tipo_delito]
+    if grupo_etario:
+        df_filtrado = df_filtrado[df_filtrado["grupo_etario"] == grupo_etario]
+    if franja_hora:
+        df_filtrado = df_filtrado[df_filtrado["franja_hora"] == franja_hora]
+    if genero:
+        df_filtrado = df_filtrado[df_filtrado["genero"] == genero]
+
+    # generar resumen 
+    total = int(df_filtrado["cantidad"].sum())
+    hora = df_filtrado["franja_hora"].value_counts().idxmax() if not franja_hora and not df_filtrado.empty else (franja_hora or "SIN_DATO")
+    top_muni = df_filtrado["municipio"].value_counts().head(3).index.tolist()
+    reco = [
+        f"Evita desplazarte en la franja {hora.lower()} en zonas de alta concentración.",
+        "Usa rutas iluminadas y comparte itinerarios con familiares.",
+        "Reporta incidentes por canales oficiales (123).",
+    ]
+
+    # construir prompt para el LLM 
     prompt = f"""
     Usuario pregunta: {req.pregunta}
-    Municipio: {req.municipio or "SIN_DATO"}
-    Delito: {req.delito or "SIN_DATO"}
 
-    Datos recientes:
-    - Total de eventos: {total}
-    - Franja de mayor riesgo: {hora}
-    - Municipios críticos: {', '.join(top_muni) if top_muni else 'SIN_DATO'}
-    - Recomendaciones: {'; '.join(reco)}
+    Entidades detectadas:
+    - Municipio: {municipio or "no especificado"}
+    - Tipo de delito: {tipo_delito or "no especificado"}
+    - Grupo etario: {grupo_etario or "no especificado"}
+    - Franja horaria: {franja_hora or "no especificada"}
+    - Género: {genero or "no especificado"}
+
+    Datos filtrados:
+    - Total de eventos registrados: {total}
+    - Franja horaria de mayor riesgo: {hora}
+    - Municipios críticos relacionados: {', '.join(top_muni) if top_muni else 'SIN_DATO'}
+    - Recomendaciones preventivas: {'; '.join(reco)}
 
     Responde como asistente comunitario de seguridad ciudadana,
-    con un tono claro y útil, integrando los datos anteriores en la respuesta.
+    con un tono claro, útil y preventivo, integrando los datos anteriores en la respuesta.
     """
 
     response = client.complete(
@@ -70,6 +124,10 @@ def ask(req: ChatRequest):
     )
 
     return ChatResponse(answer=response.choices[0].message.content)
+
+
+
+
 
 @router.get("/quick/{tipo}", response_model=ChatResponse)
 def quick(tipo: str, municipio: Optional[str] = None):

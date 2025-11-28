@@ -5,7 +5,8 @@
 
 Este proyecto fue desarrollado como parte del concurso **Datos al Ecosistema 2025**, con el objetivo de mejorar la toma de decisiones institucionales y el acceso ciudadano a información crítica sobre seguridad en los municipios no certificados del departamento de Santander.
 
-
+## Proyecto
+![proyecto](img/proyecto.png)
 
 ## 🧱 Arquitectura del Proyecto
 
@@ -131,6 +132,11 @@ python -m app.services.etl --fetch
 - **Territorial**: identificación de zonas críticas
 
 ## 🧪 Cómo levantar todo
+
+## Prerequisitos
+- Python 3.9+
+- Node.js version 20.19+ or 22.12+
+
 ### 1. Clona el proyecto y entra al directorio
 ```
 https://github.com/LeoR22/santander-security
@@ -236,7 +242,7 @@ docker-compose up --build
 ### Acceso Backend y Frontend
 ```
 Accede al backend en: http://localhost:8000/docs
-Accede al frontend en: http://localhost:4200
+Accede al frontend en: http://localhost:5173
 ```
 
 

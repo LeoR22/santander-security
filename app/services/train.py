@@ -33,7 +33,7 @@ def train_model():
     X_test  = test_df[features]
     y_test  = test_df[target]
 
-    # ⚠️ Ajuste automático si solo hay una clase en train
+    # Ajuste automático si solo hay una clase en train
     if y_train.nunique() < 2:
         print("⚠️ Solo una clase en train, ajustando split...")
         ultimo_mes = int(df["mes"].max())

@@ -1,0 +1,115 @@
+### Variables
+@host = http://localhost:8000
+@municipio = Bucaramanga
+@anio = 2025
+@mes = 11
+
+###
+### ============================================
+### DEFAULT - Health Check
+### ============================================
+GET {{host}}/health
+
+###
+### ============================================
+### ANALYTICS - Get Metrics
+### ============================================
+GET {{host}}/analytics/metrics
+
+###
+### ANALYTICS - Prediction Trend
+GET {{host}}/analytics/prediction/trend
+
+###
+### ANALYTICS - Risk Predict (con parámetros)
+GET {{host}}/analytics/risk/predict?municipio={{municipio}}&anio={{anio}}&mes={{mes}}
+
+###
+### ANALYTICS - Distribution Municipios
+GET {{host}}/analytics/distribution/municipios
+
+###
+### ============================================
+### GEO - Geospatial Incidents
+### ============================================
+GET {{host}}/geo/incidents
+
+###
+### ============================================
+### CRIMES - Get Recent
+### ============================================
+GET {{host}}/crimes/recent
+
+###
+### CRIMES - Query Crimes
+POST {{host}}/crimes/query
+Content-Type: application/json
+
+{
+  "departamento": "SANTANDER",
+  "municipio": "Bucaramanga",
+  "tipo_delito": "hurto",
+  "anio": 2025,
+  "mes": 11,
+  "limit": 10
+}
+
+###
+### Query Crimes - Sin filtros
+POST {{host}}/crimes/query
+Content-Type: application/json
+
+{
+  "departamento": "SANTANDER",
+  "municipio": "",
+  "tipo_delito": "",
+  "anio": 2025,
+  "mes": 11,
+  "limit": 50
+}
+
+###
+### ============================================
+### CHATBOT - Quick Response (recientes)
+### ============================================
+GET {{host}}/chatbot/quick/recientes?municipio={{municipio}}
+
+###
+### CHATBOT - Quick Response (todos)
+GET {{host}}/chatbot/quick/todos
+
+###
+### CHATBOT - Quick Response (seguridad)
+GET {{host}}/chatbot/quick/seguridad
+
+###
+### CHATBOT - Quick Response (general)
+GET {{host}}/chatbot/quick/general
+
+###
+### CHATBOT - Ask Question
+POST {{host}}/chatbot/ask
+Content-Type: application/json
+
+{
+  "pregunta": "Cuáles son los crímenes más recientes en Bucaramanga?",
+  "municipio": "Bucaramanga",
+  "delito": ""
+}
+
+###
+### CHATBOT - Ask Question (sin municipio)
+POST {{host}}/chatbot/ask
+Content-Type: application/json
+
+{
+  "pregunta": "¿Cuál es la tasa de criminalidad en Santander?",
+  "municipio": "",
+  "delito": ""
+}
+
+###
+### ============================================
+### TEST COMPLETO: Health + Todos los endpoints
+### ============================================
+GET {{host}}/health
