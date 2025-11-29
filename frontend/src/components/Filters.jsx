@@ -18,7 +18,7 @@ export function PredictiveAnalytics({ predictionData, municipalityData, incident
       setIsLoadingPrediction(true);
       // Asumiendo que tienes una función para obtener la predicción de riesgo
       // Si no la tienes, agrégala a tu archivo de servicios
-      fetch('http://localhost:8000/risk/predict') // Ajusta la URL según tu configuración
+      fetch('http://localhost:8000/analytics/risk/predict') // Ajusta la URL según tu configuración
         .then(response => response.json())
         .then((data) => {
           console.log('Datos de predicción recibidos:', data);

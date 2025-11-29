@@ -35,28 +35,41 @@ export default function Analytics() {
   };
 
   const loadTrendData = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/analytics/prediction/trend`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+  try {
+    const response = await fetch(`${API_BASE}/analytics/prediction/trend`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
+    const data = await response.json();
+    console.log("Respuesta del backend:", data);
 
-      const aggregated = data.reduce((acc, item) => {
-        const key = `${item.anio}-${String(item.mes).padStart(2, '0')}`;
-        if (!acc[key]) {
-          acc[key] = { periodo: key, reales: 0, predichos: 0 };
-        }
-        acc[key].reales += item.reales;
-        acc[key].predichos += item.predichos;
-        return acc;
-      }, {});
+    // Aquí accedemos al array dentro del objeto
+    const serie = Array.isArray(data.serie) ? data.serie : [];
 
-      const formatted = Object.values(aggregated).slice(-12);
-      setTrendData(formatted);
-    } catch (err) {
-      console.error('Error loading trend data:', err);
-      throw err;
-    }
-  };
+    const aggregated = serie.reduce((acc, item) => {
+      const key = `${item.anio}-${String(item.mes).padStart(2, '0')}`;
+      if (!acc[key]) {
+        acc[key] = { periodo: key, reales: 0, predichos: 0 };
+      }
+      acc[key].reales += item.reales;
+      acc[key].predichos += item.predichos;
+      return acc;
+    }, {});
+
+    const formatted = Object.values(aggregated).slice(-12);
+    setTrendData(formatted);
+
+    // Además puedes guardar las métricas adicionales si quieres
+    setMetricsData({
+      reduccion_pct: data.reduccion_pct,
+      roc_auc: data.roc_auc,
+      pr_auc: data.pr_auc
+    });
+  } catch (err) {
+    console.error('Error loading trend data:', err);
+    throw err;
+  }
+};
+
 
   const loadMunicipiosData = async () => {
     try {
