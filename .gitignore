@@ -42,8 +42,7 @@ data/processed/
 data/models/*
 data/raw/*
 data/processed/*
-app/data/
-app/data/*
+
 app/data/models/
 app/data/raw/
 app/data/processed/
